@@ -1,0 +1,9 @@
+- [ ] [WIP] ANTLR supported packages for Ubuntu: libantlr4-runtime4.8 libantlr4-runtime-dev antlr4.
+    - It shouldn't be necessary to stick to ANTLR 4.9
+    - # RUN curl -L https://www.antlr.org/download/antlr-4.8-complete.jar --output ${PREFIX}/antlr-4.8-complete.jar
+- [x] Multi-stage build
+- [ ] Re-enable Python support (>2.7) in the core configure.
+
+```
+   --with-python PYTHON=/usr/bin/python2.7 \
+```
