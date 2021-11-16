@@ -1,4 +1,5 @@
 FROM ubuntu:focal as base
+LABEL org.opencontainers.image.authors="emanuel@ongres.com"
 
 ARG MAX_JOBS
 
