@@ -2,6 +2,7 @@ version: "3"
 
 services:
   babelfishpg:
+    container_name: babelfishpg-ubuntu-focal
     image: registry.gitlab.com/ongresinc/labs/babelfish-on-docker
     ports:
       - 1433:10433
@@ -9,9 +10,11 @@ services:
     environment:
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
       - BABELFISH_USER=bbf
       - BABELFISH_PASS=password
       - BABELFISH_DB=bbf
+      - BABELFISH_MIGRATION_MODE=multi-db
       - POSTGRES_HOST_AUTH_METHOD=trust
     networks:
       - babelfish

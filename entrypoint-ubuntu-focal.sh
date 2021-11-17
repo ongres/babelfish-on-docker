@@ -245,6 +245,7 @@ docker_setup_env() {
 	file_env 'POSTGRES_USER' 'postgres'
 	file_env 'POSTGRES_DB' "$POSTGRES_USER"
 	file_env 'BABELFISH_MIGRATION_MODE' 'single-db'
+	file_env 'BABELFISH_MIGRATION_MODE' "$BABELFISH_MIGRATION_MODE"
 	file_env 'POSTGRES_INITDB_ARGS'
 	: "${POSTGRES_HOST_AUTH_METHOD:=}"
 

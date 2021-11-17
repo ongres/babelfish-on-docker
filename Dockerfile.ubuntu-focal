@@ -143,8 +143,10 @@ RUN useradd postgres  && usermod -a -G postgres postgres
 RUN set -eux; \
     sed -ri "s!^#?(listen_addresses)\s*=\s*\S+.*!\1 = '*'!" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
     sed -ri "s+#?shared_preload_libraries.*+shared_preload_libraries = 'babelfishpg_tds'+g" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    sed -i -e "\$ababelfishpg_tds.listen_addresses = '*'"  "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
     grep -F "listen_addresses = '*'" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
-    grep -F "shared_preload_libraries = 'babelfishpg_tds'" "${PREFIX}/share/postgresql/postgresql.conf.sample";
+    grep -F "shared_preload_libraries = 'babelfishpg_tds'" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    grep -F "babelfishpg_tds.listen_addresses = '*'" "${PREFIX}/share/postgresql/postgresql.conf.sample";
 
 RUN mkdir -p "$PGDATA" && chown -R postgres:postgres "$PGDATA" && chmod 777 "$PGDATA"
 
