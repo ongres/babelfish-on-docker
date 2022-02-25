@@ -2,19 +2,25 @@ FROM ubuntu:focal as base
 LABEL org.opencontainers.image.authors="emanuel@ongres.com"
 
 ARG MAX_JOBS
+ARG RELEASE
 
 ENV MAX_JOBS=${MAX_JOBS:-2}
+ENV RELEASE=${RELEASE:-BABEL_1_0_0__PG_13_4}
 ENV CODE_PATH=/opt/babelfishpg/
-ENV EXT_CODE_PATH=/opt/babelfishpg_ext
+# ENV EXT_CODE_PATH=/opt/babelfishpg_ext
 
 ENV PREFIX=/opt/target/babelfishpg
 ENV ANTLR_RUNTIME=/opt/antlr4
 
-ENV PG_SRC=/opt/babelfishpg/
+# ENV PG_SRC=/opt/babelfishpg/
 ENV PG_CONFIG=${PREFIX}/bin/pg_config
 ENV ANTLR4_RUNTIME_INCLUDE_DIR=/usr/local/include/antlr4-runtime/
 
 ENV ANTLR4_JAVA_BIN=/usr/bin/java
+
+ENV PG_SRC=${CODE_PATH}
+# ENV cmake=$(which cmake)
+
 
 RUN set -ex; \
 	apt update
@@ -69,9 +75,16 @@ RUN mkdir build && cd build && \
         -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_DEMO=True && \
     make && make install
 
-RUN git clone https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish.git ${CODE_PATH} 
-RUN git clone https://github.com/babelfish-for-postgresql/babelfish_extensions.git ${EXT_CODE_PATH}
+# RUN git clone https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish.git ${CODE_PATH} 
+# RUN git clone https://github.com/babelfish-for-postgresql/babelfish_extensions.git ${EXT_CODE_PATH}
 
+## Support for ANTLR 4.8.
+## There is an ongoing work to have broader version support for ANTLR.
+# RUN cp /usr/lib/x86_64-linux-gnu/libantlr4-runtime.so* ${PREFIX}/lib
+ENV add=
+ADD ${RELEASE}.zip /opt/${RELEASE}.zip
+
+RUN unzip -d ${CODE_PATH} /opt/${RELEASE}.zip
 
 WORKDIR ${CODE_PATH}
 
@@ -87,40 +100,46 @@ RUN ./configure CFLAGS="${CFLAGS:--Wall -Wmissing-prototypes -Wpointer-arith -Wd
   --with-icu \
   --with-extra-version=" Babelfish for PostgreSQL"
 
-
 # Compilation
-RUN make clean && make DESTDIR=${PREFIX}/tmp_install -j ${MAX_JOBS} world-bin
+RUN make clean && make DESTDIR=${PREFIX} -j ${MAX_JOBS} 
+#world-bin
 
-RUN cd contrib/ && make && cd ..
+# Install core
+RUN make install
+
+RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.2 ${PREFIX}/lib
+
+RUN ["/usr/bin/bash", "-c", "cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; cd ${CODE_PATH}/contrib/babelfishpg_tsql/antlr ; cmake . "]
+
+RUN cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime make install && cd contrib/ && make install
+
+# tmp_install
+# Build all the extensions
+RUN cd contrib/ && make && make install && cd ..
 
 # # Regression Tests
 # RUN make DESTDIR=${PREFIX}/tmp_install EXTRA_REGRESS_OPTS=--debug -j ${MAX_JOBS} check
 
-# Install core and core contribs
-RUN make install && cd contrib/ && make install
-
-WORKDIR ${EXT_CODE_PATH}
-
-## Support for ANTLR 4.8.
-## There is an ongoing work to have broader version support for ANTLR.
-# RUN cp /usr/lib/x86_64-linux-gnu/libantlr4-runtime.so* ${PREFIX}/lib
-
-RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.2 ${PREFIX}/lib
 
 
-ENV USE_PGXS=1
+
+
+# WORKDIR ${EXT_CODE_PATH}
+
+# ENV USE_PGXS=1
+
 
 ## [WIP] Support for ANTLR 4.8
 # XXX: current make is not taking in account this environment settings 
 #      ANTLR_EXECUTABLE=${PREFIX}/antlr-4.8-complete.jar ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime
-RUN ["/usr/bin/bash", "-c", "cd ${EXT_CODE_PATH}/contrib/babelfishpg_tsql/antlr ; cmake . "]
 
-RUN PG_CONFIG=${PG_CONFIG} PG_SRC=${PG_SRC} cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; \
-    for EXT in babelfishpg_common babelfishpg_money babelfishpg_tds babelfishpg_tsql ; \
-    do \
-        cd ${EXT_CODE_PATH}/contrib/${EXT} ; \
-        make clean && make && make install ; \
-    done
+
+# RUN PG_CONFIG=${PG_CONFIG} PG_SRC=${CODE_PATH} cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; \
+#     for EXT in babelfishpg_common babelfishpg_money babelfishpg_tds babelfishpg_tsql ; \
+#     do \
+#         cd ${EXT_CODE_PATH}/contrib/${EXT} ; \
+#         make clean && make && make install ; \
+#     done
 
 
 FROM base AS babelfish
