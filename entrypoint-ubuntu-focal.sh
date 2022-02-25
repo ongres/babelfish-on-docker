@@ -232,7 +232,9 @@ docker_setup_babelfish_db() {
 	EOSQL
 	echo
 	echo "Adding $BABELFISH_DB to postgresql.conf for babelfishpg_tsql.database_name"
-	echo "babelfishpg_tsql.database_name = '$BABELFISH_DB'" >> $PGDATA/postgresql.conf
+	#echo -n "\nbabelfishpg_tsql.database_name = '$BABELFISH_DB'" >> $PGDATA/postgresql.conf
+	sed -i -e "\$ababelfishpg_tsql.database_name = '$BABELFISH_DB'" $PGDATA/postgresql.conf
+	sed -i -e "\$ababelfishpg_tds.set_db_session_property = true" $PGDATA/postgresql.conf
 
 	docker_process_sql --dbname $POSTGRES_DB -c 'select pg_reload_conf();'
 }

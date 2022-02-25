@@ -9,6 +9,7 @@ services:
       args:
         buildno: 1
         MAX_JOBS: 4
+        RELEASE: BABEL_1_0_0__PG_13_4
     image: babelfishpg:ubuntu.focal
     ports:
       - 1433:1433
@@ -25,6 +26,19 @@ services:
     networks:
       - babelfish
 
+  jdbctests:
+    container_name: jdbctests
+    image: maven
+    networks:
+      - babelfish
+    volumes:
+      - ./BABEL_1_0_0__PG_13_4.zip:/opt/BABEL_1_0_0__PG_13_4.zip
+    command: >
+      bash -c "microdnf install unzip 
+        && unzip -d /opt/babelfishpg /opt/BABEL_1_0_0__PG_13_4.zip 
+        && cd /opt/babelfishpg/contrib/test/JDBC/ 
+        && mvn test"
+      
 networks:
   babelfish:
       
