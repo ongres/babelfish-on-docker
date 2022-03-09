@@ -88,7 +88,7 @@ docker_init_database_dir() {
 		set -- --waldir "$POSTGRES_INITDB_WALDIR" "$@"
 	fi
 
-	eval 'initdb --username="$POSTGRES_USER" --pwfile=<(echo "$POSTGRES_PASSWORD") '"$POSTGRES_INITDB_ARGS"' "$@"'
+	eval 'initdb -E "UTF8" --username="$POSTGRES_USER" --pwfile=<(echo "$POSTGRES_PASSWORD") '"$POSTGRES_INITDB_ARGS"' "$@"'
 
 	# unset/cleanup "nss_wrapper" bits
 	if [ "${LD_PRELOAD:-}" = '/usr/lib/libnss_wrapper.so' ]; then
@@ -211,7 +211,7 @@ docker_setup_db() {
 			--set bbfpass="$BABELFISH_PASS" \
 			--set db="$POSTGRES_DB"  <<-'EOSQL'
 			CREATE USER :"bbfuser" WITH CREATEDB CREATEROLE PASSWORD :'bbfpass' INHERIT;
-			CREATE DATABASE :"bbfdb" OWNER :"bbfuser";
+			CREATE DATABASE :"bbfdb" OWNER :"bbfuser" ENCODING 'UTF8';
 		EOSQL
 		echo
 	fi

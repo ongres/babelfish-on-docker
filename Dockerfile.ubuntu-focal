@@ -5,19 +5,18 @@ ARG MAX_JOBS
 ARG RELEASE
 
 ENV MAX_JOBS=${MAX_JOBS:-2}
-ENV RELEASE=${RELEASE:-BABEL_1_0_0__PG_13_4}
+ENV RELEASE=${RELEASE:-BABEL_1_1_0__PG_13_5}
 ENV CODE_PATH=/opt/babelfishpg/
 # ENV EXT_CODE_PATH=/opt/babelfishpg_ext
 
 ENV PREFIX=/opt/target/babelfishpg
+
 ENV ANTLR_RUNTIME=/opt/antlr4
-
-# ENV PG_SRC=/opt/babelfishpg/
-ENV PG_CONFIG=${PREFIX}/bin/pg_config
 ENV ANTLR4_RUNTIME_INCLUDE_DIR=/usr/local/include/antlr4-runtime/
-
 ENV ANTLR4_JAVA_BIN=/usr/bin/java
+ENV ANTLR4_VERSION=4.9.3
 
+ENV PG_CONFIG=${PREFIX}/bin/pg_config
 ENV PG_SRC=${CODE_PATH}
 # ENV cmake=$(which cmake)
 
@@ -58,15 +57,15 @@ RUN rm -rf /var/lib/apt/lists/*; \
 # RUN curl -L https://www.antlr.org/download/antlr-4.8-complete.jar --output ${ANTLR_EXECUTABLE}
 
 # Compiling and installing antlr runtime
-ENV ANTLR_EXECUTABLE=/usr/local/lib/antlr-4.9.2-complete.jar
+ENV ANTLR_EXECUTABLE=/usr/local/lib/antlr-${ANTLR4_VERSION}-complete.jar
 
-RUN curl https://www.antlr.org/download/antlr-4.9.2-complete.jar \
+RUN curl https://www.antlr.org/download/antlr-${ANTLR4_VERSION}-complete.jar \
         --output ${ANTLR_EXECUTABLE} && chmod +x ${ANTLR_EXECUTABLE}
 
 
-RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-4.9.2-source.zip \
-        --output /opt/antlr4-cpp-runtime-4.9.2-source.zip && \
-        unzip -d ${ANTLR_RUNTIME} /opt/antlr4-cpp-runtime-4.9.2-source.zip
+RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip \
+        --output /opt/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip && \
+        unzip -d ${ANTLR_RUNTIME} /opt/antlr4-cpp-runtime-${ANTLR4_VERSION}-source.zip
 
 WORKDIR ${ANTLR_RUNTIME}
 
@@ -81,7 +80,7 @@ RUN mkdir build && cd build && \
 ## Support for ANTLR 4.8.
 ## There is an ongoing work to have broader version support for ANTLR.
 # RUN cp /usr/lib/x86_64-linux-gnu/libantlr4-runtime.so* ${PREFIX}/lib
-ENV add=
+
 ADD ${RELEASE}.zip /opt/${RELEASE}.zip
 
 RUN unzip -d ${CODE_PATH} /opt/${RELEASE}.zip
@@ -107,7 +106,7 @@ RUN make clean && make DESTDIR=${PREFIX} -j ${MAX_JOBS}
 # Install core
 RUN make install
 
-RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.2 ${PREFIX}/lib
+RUN cp /usr/local/lib/libantlr4-runtime.so.${ANTLR4_VERSION} ${PREFIX}/lib
 
 RUN ["/usr/bin/bash", "-c", "cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; cd ${CODE_PATH}/contrib/babelfishpg_tsql/antlr ; cmake . "]
 
@@ -119,20 +118,6 @@ RUN cd contrib/ && make && make install && cd ..
 
 # # Regression Tests
 # RUN make DESTDIR=${PREFIX}/tmp_install EXTRA_REGRESS_OPTS=--debug -j ${MAX_JOBS} check
-
-
-
-
-
-# WORKDIR ${EXT_CODE_PATH}
-
-# ENV USE_PGXS=1
-
-
-## [WIP] Support for ANTLR 4.8
-# XXX: current make is not taking in account this environment settings 
-#      ANTLR_EXECUTABLE=${PREFIX}/antlr-4.8-complete.jar ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime
-
 
 # RUN PG_CONFIG=${PG_CONFIG} PG_SRC=${CODE_PATH} cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; \
 #     for EXT in babelfishpg_common babelfishpg_money babelfishpg_tds babelfishpg_tsql ; \

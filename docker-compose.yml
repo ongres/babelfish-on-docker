@@ -9,20 +9,23 @@ services:
       args:
         buildno: 1
         MAX_JOBS: 4
-        RELEASE: BABEL_1_0_0__PG_13_4
+        RELEASE: BABEL_1_1_0__PG_13_5
     image: babelfishpg:ubuntu.focal
     ports:
       - 1433:1433
       - 5432:15432
     environment:
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=12345678
       - POSTGRES_DB=postgres
       - POSTGRES_USER=postgres
-      - BABELFISH_USER=bbf
-      - BABELFISH_PASS=password
-      - BABELFISH_DB=bbf
+      - BABELFISH_USER=jdbc_user
+      - BABELFISH_PASS=12345678
+      - BABELFISH_DB=jdbc_testdb
       - BABELFISH_MIGRATION_MODE=multi-db
       - POSTGRES_HOST_AUTH_METHOD=trust
+      #- POSTGRES_INITDB_ARGS=" -E=UTF8 "
+    volumes:
+      - ./postgres/entrypoint:/docker-entrypoint-initdb.d/
     networks:
       - babelfish
 
@@ -32,12 +35,12 @@ services:
     networks:
       - babelfish
     volumes:
-      - ./BABEL_1_0_0__PG_13_4.zip:/opt/BABEL_1_0_0__PG_13_4.zip
+      - ./BABEL_1_1_0__PG_13_5.zip:/opt/BABEL_1_1_0__PG_13_5.zip
     command: >
-      bash -c "microdnf install unzip 
-        && unzip -d /opt/babelfishpg /opt/BABEL_1_0_0__PG_13_4.zip 
-        && cd /opt/babelfishpg/contrib/test/JDBC/ 
-        && mvn test"
+      bash -c "DEBIAN_FRONTEND=interactive microdnf install unzip 
+      && unzip -d /opt/babelfishpg /opt/BABEL_1_1_0__PG_13_5.zip 
+      && cd /opt/babelfishpg/contrib/test/JDBC/ 
+      && sed -i 's/URL = localhost/URL = babelfishpg-ubuntu-focal/' src/main/resources/config.txt && mvn test"
       
 networks:
   babelfish:
