@@ -1,11 +1,12 @@
 version: "3"
 
 services:
-  babelfishpg:
-    container_name: babelfishpg-ubuntu-focal
-    image: registry.gitlab.com/ongresinc/labs/babelfish-on-docker
+  babelfishpg-2.1.1-ubuntu-focal:
+    container_name: babelfishpg-2.1.1-ubuntu.focal
+    image: babelfishpg:2.1.1-ubuntu.focal
     ports:
-      - 1433:10433
+      # Port forwarding not supported by BabelfishPG
+      - 1433:1433
       - 5432:15432
     environment:
       - POSTGRES_PASSWORD=password

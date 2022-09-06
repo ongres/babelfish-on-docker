@@ -1,0 +1,256 @@
+{{ WARNING_QUOTE }}
+
+FROM centos:{{OSVERSION}} as base
+
+ARG MAX_JOBS
+ENV TAG={{ TAG }}
+ENV MAX_JOBS=${MAX_JOBS:-2}
+ENV ANTLR_VERSION={{ ANTLR_VERSION }}
+ENV BABELFISH_VERSION={{ BABELFISH_VERSION }}
+
+ENV MAX_JOBS=${MAX_JOBS:-2}
+
+ENV PREFIX=/usr/local/babelfishpg-${BABELFISH_VERSION}
+ENV ANTLR_RUNTIME=/opt/antlr4
+ENV ANTLR_VERSION=${ANTLR_VERSION:-4.9.3}
+
+ENV PG_SRC=/opt/${TAG}/
+ENV PG_CONFIG=${PREFIX}/bin/pg_config
+ENV ANTLR4_RUNTIME_INCLUDE_DIR=/usr/local/include/antlr4-runtime/
+
+ENV ANTLR4_JAVA_BIN=/usr/bin/java
+
+
+RUN dnf install -y gcc gcc-c++ kernel-devel make
+RUN dnf install -y bison flex libxml2-devel readline-devel zlib-devel
+RUN dnf --enablerepo=powertools install -y uuid-devel pkg-config openssl-devel
+RUN dnf install -y libicu-devel postgresql-devel perl
+RUN dnf install -y wget
+
+
+ENV PATH="${PREFIX}/bin:${PATH}"
+
+RUN curl -L https://github.com/babelfish-for-postgresql/babelfish-for-postgresql/releases/download/${TAG}/${TAG}.zip \
+    --output ${TAG}.zip && unzip -d /opt/ ${TAG}.zip 
+
+# Compiling and installing antlr runtime
+ENV ANTLR_EXECUTABLE=${PG_SRC}/contrib/babelfishpg_tsql/antlr/thirdparty/antlr/antlr-${ANTLR_VERSION}-complete.jar
+
+# RUN curl https://www.antlr.org/download/antlr-${ANTLR_VERSION}-complete.jar \
+#         --output ${ANTLR_EXECUTABLE} && chmod +x ${ANTLR_EXECUTABLE}
+
+RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip \
+        --output /opt/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip && \
+        unzip -d ${ANTLR_RUNTIME} /opt/antlr4-cpp-runtime-${ANTLR_VERSION}-source.zip
+
+RUN mkdir ${ANTLR_RUNTIME}/build
+WORKDIR ${ANTLR_RUNTIME}/build
+
+RUN cmake .. -DANTLR_JAR_LOCATION="${ANTLR_EXECUTABLE}" \
+        -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_DEMO=True && \
+    make && make install
+
+
+WORKDIR ${PG_SRC}
+
+RUN ./configure CFLAGS="${CFLAGS:--Wall -ggdb -Wmissing-prototypes -Wpointer-arith -Wdeclaration-after-statement -Wendif-labels -Wmissing-format-attribute -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong --param=ssp-buffer-size=4 -grecord-gcc-switches -m64 -mtune=generic}" \
+  --prefix=${PREFIX} \
+  --enable-debug \
+  --with-ldap \
+  --with-libxml \
+  --with-pam \
+  --with-uuid=ossp \
+  --enable-nls \
+  --with-libxslt \
+  --with-icu
+  
+# Engine Compilation
+RUN make clean && make DESTDIR=${PREFIX}/tmp_install -j ${MAX_JOBS} world-bin && make install
+
+WORKDIR ${PG_SRC}/contrib
+# Built-in contrib installation
+RUN make
+RUN make install
+
+RUN cp /usr/local/lib/libantlr4-runtime.so.${ANTLR_VERSION} ${PREFIX}/lib
+
+ENV USE_PGXS=1
+
+RUN ["/usr/bin/bash", "-c", "cd ${PG_SRC}/contrib/babelfishpg_tsql/antlr ; cmake . "]
+
+RUN PG_CONFIG=${PG_CONFIG} PG_SRC=${PG_SRC} cmake=$(which cmake) ANTLR4_RUNTIME_LIBRARIES=/usr/include/antlr4-runtime ; \
+    for EXT in babelfishpg_common babelfishpg_money babelfishpg_tds babelfishpg_tsql ; \
+    do \
+        cd ${PG_SRC}/contrib/${EXT} ; \
+        make clean && make && make install ; \
+    done
+
+RUN yum clean all
+
+FROM base AS babelfishpg
+COPY --from=base ${PREFIX}/ /usr/local/ /opt/mssql-tools/bin/
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="${PREFIX}/bin:${PATH}"
+ENV PGDATA="/var/lib/postgresql/data"
+ENV DOCKER_ENTRYPOINT="/usr/local/bin/entrypoint.sh"
+
+
+RUN yum update -y \
+    yum install -y uuid  pkgconfig.x86_64 openssl \
+    libicu perl openldap.x86_64 libxslt.x86_64 \
+    shadow-utils libuuid-devel openldap pam gettext
+
+
+# Create postgres user
+RUN useradd postgres  && usermod -a -G postgres postgres
+
+# Sample default ready for Babelfish to run
+RUN set -eux; \
+    sed -ri "s!^#?(listen_addresses)\s*=\s*\S+.*!\1 = '*'!" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    sed -ri "s+#?shared_preload_libraries.*+shared_preload_libraries = 'babelfishpg_tds'+g" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    sed -i -e "\$ababelfishpg_tds.listen_addresses = '*'"  "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    grep -F "listen_addresses = '*'" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    grep -F "shared_preload_libraries = 'babelfishpg_tds'" "${PREFIX}/share/postgresql/postgresql.conf.sample"; \
+    grep -F "babelfishpg_tds.listen_addresses = '*'" "${PREFIX}/share/postgresql/postgresql.conf.sample";
+
+RUN mkdir -p "$PGDATA" && chown -R postgres:postgres "$PGDATA" && chmod 777 "$PGDATA"
+
+COPY entrypoint.sh ${DOCKER_ENTRYPOINT}
+
+RUN chmod -R 0750 "${PREFIX}/share" && \
+    chown postgres: ${DOCKER_ENTRYPOINT} && \
+    chmod +x ${DOCKER_ENTRYPOINT} && \
+    chown -R postgres: ${PREFIX} 
+
+WORKDIR "${PREFIX}/bin/"
+
+RUN yum clean all && rm -rf /var/cache/yum
+
+USER postgres
+
+STOPSIGNAL SIGINT
+
+EXPOSE 1433
+EXPOSE 5432
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+CMD ["postgres"]
+
+
+# RUN mkdir /code
+# RUN useradd johndoe
+# COPY 'postgresql_modified_for_babelfish' '/code/postgresql_modified_for_babelfish'
+# RUN chown -R johndoe:johndoe /code/postgresql_modified_for_babelfish
+# WORKDIR /code/postgresql_modified_for_babelfish
+# USER johndoe
+
+# RUN ./configure CFLAGS="-ggdb" \
+#   --enable-debug \
+#   --with-libxml \
+#   --with-uuid=ossp \
+#   --with-icu \
+#   --with-extra-version=" Babelfish for PostgreSQL"
+
+# RUN ./configure CFLAGS="-ggdb" \
+#   --prefix=/usr/local/pgsql-13.4 \
+#   --enable-debug \
+#   --with-libxml \
+#   --with-uuid=ossp \
+#   --with-icu \
+#   --with-extra-version=" Babelfish for PostgreSQL"
+
+# ENV INSTALLATION_PATH=/usr/local/pgsql-13.4
+# USER root
+# RUN mkdir "$INSTALLATION_PATH"
+
+
+# RUN chown -R johndoe:johndoe /usr/local/pgsql-13.4
+# USER johndoe
+
+# RUN make            # Compiles the Babefish for PostgreSQL engine
+# WORKDIR /code/postgresql_modified_for_babelfish/contrib 
+
+# RUN make            # Compiles the PostgreSQL default extensions
+# WORKDIR /code/postgresql_modified_for_babelfish
+# RUN make install    # Installs the Babelfish for PostgreSQL engine
+# WORKDIR /code/postgresql_modified_for_babelfish/contrib
+
+# RUN make install    # Installs the PostgreSQL default extensions
+# COPY 'babelfish_extensions' '/code/babelfish_extensions'
+
+# USER root
+# RUN chown -R johndoe:johndoe '/code/babelfish_extensions'
+
+# RUN dnf install -y java unzip curl git
+# RUN dnf install -y cmake libuuid-devel
+
+# RUN # Dowloads the compressed Antlr4 Runtime sources on /opt/antlr4-cpp-runtime-4.9.2-source.zip 
+# RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-4.9.2-source.zip \
+#   --output /opt/antlr4-cpp-runtime-4.9.2-source.zip 
+
+# RUN # Uncompress the source into /opt/antlr4
+# RUN unzip -d /opt/antlr4 /opt/antlr4-cpp-runtime-4.9.2-source.zip
+
+# RUN mkdir /opt/antlr4/build 
+# WORKDIR /opt/antlr4/build
+
+# ENV EXTENSIONS_SOURCE_CODE_PATH=/code/babelfish_extensions
+
+# RUN # Generates the make files for the build
+# RUN cmake .. -DANTLR_JAR_LOCATION="$EXTENSIONS_SOURCE_CODE_PATH/contrib/babelfishpg_tsql/antlr/thirdparty/antlr/antlr-4.9.2-complete.jar" \
+#          -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_DEMO=True
+# RUN # Compiles and install
+# RUN make
+# RUN make install
+
+# RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.2 "$INSTALLATION_PATH/lib"
+
+# ENV PG_CONFIG=/usr/local/pgsql-13.4/bin/pg_config
+# ENV PG_SRC=/code/postgresql_modified_for_babelfish
+# ENV cmake=/usr/bin/cmake
+
+# WORKDIR /code/babelfish_extensions
+
+# USER johndoe
+# RUN # Install babelfishpg_money extension
+# WORKDIR /code/babelfish_extensions/contrib/babelfishpg_money
+# RUN make
+# RUN make install
+
+# RUN # Install babelfishpg_common extension
+# WORKDIR /code/babelfish_extensions/contrib/babelfishpg_common
+# RUN make 
+# RUN make install
+
+# RUN # Install babelfishpg_tds extension
+# WORKDIR /code/babelfish_extensions/contrib/babelfishpg_tds
+# RUN make 
+# RUN make install
+
+# RUN # Installs the babelfishpg_tsql extension
+# WORKDIR /code/babelfish_extensions/contrib/babelfishpg_tsql
+# RUN make 
+# RUN make install
+
+# USER root
+# RUN mkdir -p /usr/local/pgsql/data
+
+# RUN adduser postgres
+
+# RUN chown -R postgres:postgres $INSTALLATION_PATH
+# RUN chown -R postgres:postgres /usr/local/pgsql/data
+
+# USER  postgres
+# RUN $INSTALLATION_PATH/bin/initdb -D /usr/local/pgsql/data
+
+# RUN echo "listen_addresses = '*'" >> /usr/local/pgsql/data/postgresql.conf
+# RUN echo "shared_preload_libraries = 'babelfishpg_tds'" >> /usr/local/pgsql/data/postgresql.conf
+
+# EXPOSE 5432
+# EXPOSE 1433
+
+# WORKDIR /usr/local/pgsql-13.4/
+
+# ENTRYPOINT ["/usr/local/pgsql-13.4/bin/postgres", "-D", "/usr/local/pgsql/data"]
