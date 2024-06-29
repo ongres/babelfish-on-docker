@@ -1,6 +1,7 @@
 FROM ubuntu:focal as base
 LABEL org.opencontainers.image.authors="emanuel@ongres.com"
 
+ARG BABELTAG
 ARG MAX_JOBS
 
 ENV MAX_JOBS=${MAX_JOBS:-2}
@@ -52,15 +53,15 @@ RUN rm -rf /var/lib/apt/lists/*; \
 # RUN curl -L https://www.antlr.org/download/antlr-4.8-complete.jar --output ${ANTLR_EXECUTABLE}
 
 # Compiling and installing antlr runtime
-ENV ANTLR_EXECUTABLE=/usr/local/lib/antlr-4.9.2-complete.jar
+ENV ANTLR_EXECUTABLE=/usr/local/lib/antlr-4.9.3-complete.jar
 
-RUN curl https://www.antlr.org/download/antlr-4.9.2-complete.jar \
+RUN curl https://www.antlr.org/download/antlr-4.9.3-complete.jar \
         --output ${ANTLR_EXECUTABLE} && chmod +x ${ANTLR_EXECUTABLE}
 
 
-RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-4.9.2-source.zip \
-        --output /opt/antlr4-cpp-runtime-4.9.2-source.zip && \
-        unzip -d ${ANTLR_RUNTIME} /opt/antlr4-cpp-runtime-4.9.2-source.zip
+RUN curl https://www.antlr.org/download/antlr4-cpp-runtime-4.9.3-source.zip \
+        --output /opt/antlr4-cpp-runtime-4.9.3-source.zip && \
+        unzip -d ${ANTLR_RUNTIME} /opt/antlr4-cpp-runtime-4.9.3-source.zip
 
 WORKDIR ${ANTLR_RUNTIME}
 
@@ -69,11 +70,12 @@ RUN mkdir build && cd build && \
         -DCMAKE_INSTALL_PREFIX=/usr/local -DWITH_DEMO=True && \
     make && make install
 
-RUN git clone https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish.git ${CODE_PATH} 
-RUN git clone https://github.com/babelfish-for-postgresql/babelfish_extensions.git ${EXT_CODE_PATH}
+RUN git clone --branch ${BABELTAG} https://github.com/babelfish-for-postgresql/postgresql_modified_for_babelfish.git ${CODE_PATH} 
+RUN git clone --branch ${BABELTAG%%__*} https://github.com/babelfish-for-postgresql/babelfish_extensions.git ${EXT_CODE_PATH}
 
 
 WORKDIR ${CODE_PATH}
+
 
 RUN ./configure CFLAGS="${CFLAGS:--Wall -Wmissing-prototypes -Wpointer-arith -Wdeclaration-after-statement -Wendif-labels -Wmissing-format-attribute -Wformat-security -fno-strict-aliasing -fwrapv -fexcess-precision=standard -O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector-strong --param=ssp-buffer-size=4 -grecord-gcc-switches -m64 -mtune=generic}" \
   --prefix=${PREFIX} \
@@ -101,11 +103,12 @@ RUN make install && cd contrib/ && make install
 
 WORKDIR ${EXT_CODE_PATH}
 
-## Support for ANTLR 4.8.
+
+## Support for ANTLR 4.3.
 ## There is an ongoing work to have broader version support for ANTLR.
 # RUN cp /usr/lib/x86_64-linux-gnu/libantlr4-runtime.so* ${PREFIX}/lib
 
-RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.2 ${PREFIX}/lib
+RUN cp /usr/local/lib/libantlr4-runtime.so.4.9.3 ${PREFIX}/lib
 
 
 ENV USE_PGXS=1
@@ -129,7 +132,7 @@ COPY --from=base ${PREFIX}/ /usr/local/ /opt/mssql-tools/bin/
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PATH="${PREFIX}/bin:${PATH}"
 ENV PGDATA="/var/lib/postgresql/data"
-ENV DOCKER_ENTRYPOINT="/usr/local/bin/entrypoint-ubuntu-focal.sh"
+ENV DOCKER_ENTRYPOINT="/usr/local/bin/entrypoint.sh"
 
 RUN apt-get update && \
     apt-get install -y libxml2 libreadline8 tzdata libldap-2.4-2 libpython2.7 libxslt1.1 libossp-uuid16 && \
@@ -150,7 +153,7 @@ RUN set -eux; \
 
 RUN mkdir -p "$PGDATA" && chown -R postgres:postgres "$PGDATA" && chmod 777 "$PGDATA"
 
-COPY entrypoint-ubuntu-focal.sh /usr/local/bin/
+COPY babelfishpg/ubuntu/focal/entrypoint.sh /usr/local/bin/
 
 RUN chmod -R 0750 "${PREFIX}/share" && \
     chown postgres: ${DOCKER_ENTRYPOINT} && \
@@ -166,6 +169,6 @@ STOPSIGNAL SIGINT
 EXPOSE 1433
 EXPOSE 5432
 
-ENTRYPOINT ["/usr/local/bin/entrypoint-ubuntu-focal.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 CMD ["postgres"]

@@ -5,11 +5,12 @@ services:
     container_name: babelfishpg-ubuntu-focal
     build:
       context: .
-      dockerfile: Dockerfile.ubuntu-focal
+      dockerfile: babelfishpg/ubuntu/focal/Dockerfile
       args:
         buildno: 1
         MAX_JOBS: 4
-    image: babelfishpg:ubuntu.focal
+        BABELTAG: BABEL_4_1_0__PG_16_2
+    image: babelfishpg:4.1.0-ubuntu-focal
     ports:
       - 1433:1433
       - 5432:15432
