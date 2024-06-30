@@ -3,10 +3,11 @@
 
 DEFAULT_DISTRO="ubuntu"
 DEFAULT_OSVERSION="focal"
+NOCACHE=""
 
 function build() {
     cd ${BABELFISH_VERSION}/$DISTRO/$OSVERSION
-    docker build $BUILD_ARG_MAX_JOBS $LATEST \
+    docker build $NOCACHE $BUILD_ARG_MAX_JOBS $LATEST \
         -t babelfishpg:${BABELFISH_VERSION}-${DISTRO}.${OSVERSION} \
         -t babelfishpg:$(uname -m) .
 
@@ -21,7 +22,7 @@ function help() {
     "
 }
 
-while getopts 'o:v:T:M:hl' OPT
+while getopts 'o:v:T:M:hln' OPT
 do
     case "$OPT" in
         o)    DISTRO=$OPTARG ;;
@@ -30,6 +31,7 @@ do
         M)    export BUILD_ARG_MAX_JOBS=" --build-arg MAX_JOBS=$OPTARG" ;;
         h|--help) help ;;
         l)    LATEST=" -t babelfishpg:latest " ;;
+        n)    export NOCACHE=" --no-cache " ;;
         *)    help ; exit 1 ;;
     esac
 done

@@ -106,9 +106,9 @@ RUN set -ex ; \
         --with-uuid=ossp \
         --enable-nls \
         --with-libxslt \
-        --with-openssl \
         --with-icu ${CONFIGURE_FLAGS}
-    
+        
+        # --with-openssl 
 
 # Engine Compilation
 RUN make clean && make DESTDIR=${PREFIX}/tmp_install -j ${MAX_JOBS} world-bin && make install
