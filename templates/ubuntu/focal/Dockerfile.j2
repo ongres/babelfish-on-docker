@@ -24,7 +24,7 @@ RUN set -ex; \
 RUN set -ex ; \
     DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
     build-essential flex libxml2-dev libxml2-utils libc6-dev \
-    libxslt-dev libssl-dev \
+    libxslt-dev \
     libreadline-dev zlib1g-dev libldap2-dev libpam0g-dev gettext  \
     uuid uuid-dev cmake lld apt-utils pkg-config libossp-uuid-dev gnulib bison git
 
@@ -102,6 +102,7 @@ RUN set -ex ; \
         --with-uuid=ossp \
         --enable-nls \
         --with-libxslt \
+        --with-openssl \
         --with-icu ${CONFIGURE_FLAGS}
     
 
@@ -138,7 +139,8 @@ ENV PGDATA="/var/lib/postgresql/data"
 ENV DOCKER_ENTRYPOINT="/usr/local/bin/entrypoint.sh"
 
 RUN apt-get update && \
-    apt-get install -y libxml2 libreadline8 tzdata libldap-2.4-2 libpython2.7 libxslt1.1 libossp-uuid16 && \
+    apt-get install -y --no-install-recommends \
+    libssl1.1 openssl libxml2 libreadline8 tzdata libldap-2.4-2 libpython2.7 libxslt1.1 libossp-uuid16 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
