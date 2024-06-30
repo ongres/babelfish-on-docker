@@ -1,0 +1,41 @@
+version: "3"
+
+services:
+  babelfish:
+    container_name: babelfish
+    image: babelfishpg:4.1.0-ubuntu.focal
+    ports:
+      # Port forwarding not supported by BabelfishPG
+      - 14333:1433
+      - 5434:15432
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - BABELFISH_USER=bbf
+      - BABELFISH_PASS=password
+      - BABELFISH_DB=bbf
+      - BABELFISH_MIGRATION_MODE=multi-db
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    networks:
+      - babelfish
+
+  tdspool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        buildno: 1
+        # MAX_JOBS: 4
+        # TAG: BABEL_2_1_1__PG_14_3
+    image: tdspool:latest
+    ports: 
+      - 50001:5000
+    container_name: tdspool
+    depends_on:
+      - babelfish
+    networks:
+      - babelfish
+
+networks:
+  babelfish:

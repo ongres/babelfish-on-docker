@@ -1,17 +1,83 @@
 # Babelfish on Docker
 
-Docker environments for Babelfish test.
+Docker templates and Dockerfiles for Babelfish.
 
+For building the images, see `BUILD.md`.
 
-## Use current image
+## Building the image
 
 ```bash
-docker pull registry.gitlab.com/ongresinc/labs/babelfish-on-docker:latest
+./build.sh -o ubuntu -v focal -T BABEL_2_1_1__PG_14_3
 ```
 
+See `releases.json` for referring to the available Dockerfiles, or
+check `<version>/distro/osversion/`.
+
+
+## Docker run
+
+```bash
+docker run -d -i -t  \
+        -e POSTGRES_PASSWORD=password -e POSTGRES_DB=postgres \
+        -e POSTGRES_USER=postgres -e BABELFISH_USER=bbf \
+        -e BABELFISH_PASS=password -e BABELFISH_DB=bbf \
+        -e BABELFISH_MIGRATION_MODE=multi-db \
+        -e POSTGRES_HOST_AUTH_METHOD=trust \
+        -p 1433:1433 -p 5432:15432 \
+        --name babelfishpg-2.1.1-ubuntu.focal \
+        babelfishpg:2.1.1-ubuntu.focal
 ```
-docker-compose -f docker-compose-remote.yml up 
+
+
+## Docker Compose
+
+For using the available docker-compose files, go to the corresponding
+flavor folder (`<version>/distro/osversion/`) and execute:
+
+```bash
+docker-compose up
 ```
+
+A basic structure with the build included would be:
+
+eg:
+
+```yaml
+version: "3"
+
+services:
+  babelfishpg-2.1.1-amazonlinux-2:
+    container_name: babelfishpg-2.1.1-amazonlinux.2
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        buildno: 1
+        MAX_JOBS: 4
+    image: babelfishpg:2.1.1-amazonlinux.2
+    ports:
+      # Port forwarding not supported by BabelfishPG
+      - 1433:1433
+      - 5432:15432
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - BABELFISH_USER=bbf
+      - BABELFISH_PASS=password
+      - BABELFISH_DB=bbf
+      - BABELFISH_MIGRATION_MODE=multi-db
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    networks:
+      - babelfish
+
+...
+
+networks:
+  babelfish:
+```
+
+## Access 
 
 Access through local:
 
@@ -43,20 +109,9 @@ The mapped schemas will had the `*-dbo` suffix. This mode is useful if you rely 
 Single-DB will allow only one user database, and it might be the most recommended mode for beginners.
 
 
-## Building
+## Extending the image
 
-```bash
-docker-compose build babelfishpg-ubuntu-focal
-docker-compose up
-
-docker tag babelfishpg:ubuntu.focal registry.gitlab.com/ongresinc/labs/babelfish-on-docker
-docker tag babelfishpg:ubuntu.focal ghcr.io/ongres/babelfish-on-docker-compose
-docker push registry.gitlab.com/ongresinc/labs/babelfish-on-docker
-docker push ghcr.io/ongres/babelfish-on-docker-compose
-```
-
-See that you can add more distros in the same compose, and build by build argument as above.
-
+The current entrypoint is compatible with [the Official Docker Images](https://hub.docker.com/_/postgres/).
 
 
 ## References
